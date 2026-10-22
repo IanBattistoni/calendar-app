@@ -63,6 +63,9 @@ pub struct Preferences {
     pub close_outside: bool,
     pub widget_expand: bool,
     pub widget_upcoming_count: u8,
+    pub widget_width: f64,
+    pub widget_height: f64,
+    pub widget_dropdown_height: f64,
     pub notifications_enabled: bool,
     pub catch_up_hours: u8,
 }
@@ -81,6 +84,9 @@ impl Default for Preferences {
             close_outside: true,
             widget_expand: true,
             widget_upcoming_count: 5,
+            widget_width: 427.0,
+            widget_height: 0.0,
+            widget_dropdown_height: 280.0,
             notifications_enabled: true,
             catch_up_hours: 24,
         }
@@ -110,6 +116,11 @@ pub fn load(app: &AppHandle) -> Result<Preferences, String> {
     }
 }
 pub fn save(app: &AppHandle, preferences: &Preferences) -> Result<(), String> {
+    if !preferences.widget_width.is_finite() || !(304.0..=1600.0).contains(&preferences.widget_width)
+        || !preferences.widget_height.is_finite() || !(0.0..=1000.0).contains(&preferences.widget_height)
+        || !preferences.widget_dropdown_height.is_finite() || !(80.0..=1600.0).contains(&preferences.widget_dropdown_height) {
+        return Err("Tamaño del widget no válido".into());
+    }
     if !(3..=10).contains(&preferences.widget_upcoming_count)
         || ![0, 1, 24].contains(&preferences.catch_up_hours)
     {
@@ -143,5 +154,18 @@ mod tests {
     #[test]
     fn rejects_unknown_theme() {
         assert!(serde_json::from_str::<Preferences>(r#"{"theme":"unsupported"}"#).is_err());
+    }
+    #[test]
+    fn legacy_preferences_get_widget_dimensions_and_custom_dimensions_survive_restart() {
+        let mut p: Preferences = serde_json::from_str(r#"{"widgetEnabled":true}"#).unwrap();
+        assert_eq!(p.widget_width, 427.0);
+        assert_eq!(p.widget_height, 0.0);
+        p.widget_width = 600.0;
+        p.widget_height = 180.0;
+        p.widget_dropdown_height = 400.0;
+        let restored: Preferences = serde_json::from_slice(&serde_json::to_vec(&p).unwrap()).unwrap();
+        assert_eq!(restored.widget_width, 600.0);
+        assert_eq!(restored.widget_height, 180.0);
+        assert_eq!(restored.widget_dropdown_height, 400.0);
     }
 }

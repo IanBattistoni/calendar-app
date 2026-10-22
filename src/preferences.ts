@@ -13,6 +13,9 @@ export interface Preferences {
   closeOutside: boolean;
   widgetExpand: boolean;
   widgetUpcomingCount: number;
+  widgetWidth: number;
+  widgetHeight: number;
+  widgetDropdownHeight: number;
   notificationsEnabled: boolean;
   catchUpHours: number;
 }
@@ -20,6 +23,7 @@ export const defaults: Preferences = {
   theme: "auto", accent: "blue", calendarSize: "normal", firstDay: 1, compact: false,
   widgetEnabled: false, widgetOnTop: false, widgetPosition: "topRight", widgetView: "next", closeOutside: true,
   widgetExpand: true, widgetUpcomingCount: 5, notificationsEnabled: true, catchUpHours: 24,
+  widgetWidth: 427, widgetHeight: 0, widgetDropdownHeight: 280,
 };
 export async function loadPreferences(): Promise<{ preferences: Preferences; loadError: string | null }> {
   if (isTauri()) return invoke("get_initial_state");

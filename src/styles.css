@@ -252,3 +252,14 @@ body.widget .widget-panel { box-shadow: 0 8px 16px rgb(0 0 0 / 6%); }
 .preview.widget #app { width: 444px; height: 524px; box-shadow: none; overflow: visible; }
 .preview.widget:has(.next-widget) #app { width: 427px; height: 140px; }
 .preview.widget:has(.next-widget.expanded) #app { height: 478px; }
+
+.widget-resize { position: fixed; z-index: 100; touch-action: none; }
+body:not(.widget) .widget-resize { display: none; }
+.resize-East, .resize-West { top: 7px; bottom: 7px; width: 10px; cursor: ew-resize; }
+.resize-East { right: 7px; } .resize-West { left: 7px; }
+.widget-move { position: fixed; left: 20px; right: 20px; height: 20px; z-index: 100; cursor: move; touch-action: none; }
+body:not(.widget) .widget-move { display: none; }
+.move-top { top: 2px; }
+.move-bottom { bottom: 2px; }
+body.widget .widget-panel { cursor: move; user-select: none; }
+body.widget .mini-event { cursor: move; }

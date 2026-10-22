@@ -104,6 +104,7 @@ pub fn run() {
             commands::open_calendar,
             commands::open_event_in_calendar,
             commands::start_widget_drag,
+            commands::start_widget_resize,
             events::list_occurrences,
             events::save_event,
             events::delete_event,

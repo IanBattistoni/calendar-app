@@ -261,13 +261,6 @@ app.addEventListener("click", event => {
     }
   })().catch(notify);
 });
-app.addEventListener("pointerdown", event => {
-  if (event.button === 0 && (event.target as Element).closest('[data-action="drag"]')) {
-    event.preventDefault();
-    widgetHover?.drag(true);
-    void nativeCommand("start_widget_drag").catch(error => { widgetHover?.drag(false); notify(error); });
-  }
-});
 app.addEventListener("change", event => {
   const input = event.target as HTMLInputElement | HTMLSelectElement;
   const key = input.dataset.pref as keyof Preferences | undefined;

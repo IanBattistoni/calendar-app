@@ -8,8 +8,11 @@ const WIDGET_SHADOW_INSET: f64 = 12.0;
 
 #[derive(Default)]
 pub struct WidgetLayout {
-    collapsed: Mutex<Option<tauri::PhysicalSize<u32>>>,
+    pub(crate) collapsed: Mutex<Option<tauri::PhysicalSize<u32>>>,
     pub dragging: std::sync::atomic::AtomicBool,
+    pub resizing: std::sync::atomic::AtomicBool,
+    pub resize_vertical_bounds: Mutex<Option<(i32, i32)>>,
+    pub expanded: std::sync::atomic::AtomicBool,
 }
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,6 +100,7 @@ fn resize_widget(
     if layout.dragging.load(Ordering::Relaxed) {
         return Ok(());
     }
+    layout.expanded.store(expanded, Ordering::Relaxed);
     let mut saved = layout.collapsed.lock().map_err(|e| e.to_string())?;
     let current = window.inner_size().map_err(|e| e.to_string())?;
     let outer = window.outer_size().map_err(|e| e.to_string())?;
@@ -350,7 +354,7 @@ pub fn sync_widget(app: &AppHandle, p: &Preferences, reposition: bool) -> Result
     }
     let (content_width, content_height) = match p.widget_view {
         WidgetView::Agenda => (420.0, 500.0),
-        WidgetView::Next => (403.0, 116.0),
+        WidgetView::Next => (p.widget_width - 24.0, 116.0),
     };
     let width = content_width + WIDGET_SHADOW_INSET * 2.0;
     let height = content_height + WIDGET_SHADOW_INSET * 2.0;
@@ -364,11 +368,12 @@ pub fn sync_widget(app: &AppHandle, p: &Preferences, reposition: bool) -> Result
         )
         .title("Calendario · Widget")
         .inner_size(width, height)
-        .min_inner_size(280.0, 80.0)
+        .min_inner_size(304.0, 135.0)
+        .max_inner_size(1600.0, 1800.0)
         .decorations(false)
         .transparent(true)
         .shadow(false)
-        .resizable(false)
+        .resizable(true)
         .skip_taskbar(true)
         .visible(false)
         .focused(false)

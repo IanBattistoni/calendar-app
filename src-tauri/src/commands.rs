@@ -102,3 +102,11 @@ pub fn start_widget_drag(window: WebviewWindow) -> Result<(), String> {
     }
     window.start_dragging().map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn start_widget_resize(window: WebviewWindow, direction: String) -> Result<(), String> {
+    if window.label() != "widget" { return Err("Acción disponible solo en el widget".into()); }
+    if !matches!(direction.as_str(), "East" | "West") { return Err("Solo se puede ajustar el ancho".into()); }
+    let direction = serde_json::from_value(serde_json::Value::String(direction)).map_err(|e| e.to_string())?;
+    window.as_ref().window().start_resize_dragging(direction).map_err(|e| e.to_string())
+}
