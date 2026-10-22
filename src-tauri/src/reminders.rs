@@ -367,6 +367,7 @@ mod tests {
                 description: "".into(),
                 kind: Kind::Birthday,
                 annual: true,
+                weekly: None,
                 reminders: vec![4320, 2880, 1440, 0],
                 notify_at: "09:00".into(),
             },
@@ -401,6 +402,26 @@ mod tests {
         occurrence.event.reminders.clear();
         assert!(build_alerts(&[occurrence]).unwrap().is_empty());
         assert!(build_alerts(&[]).unwrap().is_empty());
+    }
+    #[test]
+    fn weekly_alerts_follow_occurrence_dates_and_stopping_series_cancels_future_alerts() {
+        let mut event = item().event;
+        event.kind = Kind::Event;
+        event.annual = false;
+        event.date = "2026-10-22".into();
+        event.time = Some("09:30".into());
+        event.reminders = vec![5];
+        event.weekly = Some(crate::events::WeeklyRepeat { days: vec![1, 2, 3, 4, 5], until: None });
+        let items = events::occurrences(vec![event.clone()], "2026-10-22", "2026-10-26").unwrap();
+        let alerts = build_alerts(&items).unwrap();
+        assert_eq!(alerts.len(), 3);
+        assert_eq!(alerts[0].due, at("2026-10-22", "09:25").unwrap().timestamp_millis());
+        assert_eq!(alerts[2].due, at("2026-10-26", "09:25").unwrap().timestamp_millis());
+        assert_ne!(alerts[0].key, alerts[2].key);
+        event.weekly.as_mut().unwrap().until = Some("2026-10-23".into());
+        let items = events::occurrences(vec![event], "2026-10-22", "2026-10-26").unwrap();
+        assert_eq!(build_alerts(&items).unwrap().len(), 2);
+        assert!(build_alerts(&events::occurrences(vec![], "2026-10-22", "2026-10-26").unwrap()).unwrap().is_empty());
     }
     #[test]
     fn ledger_roundtrip_keeps_claims_after_restart() {

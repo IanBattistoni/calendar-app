@@ -9,6 +9,7 @@ export interface CalendarEvent {
   description: string;
   kind: EventKind;
   annual: boolean;
+  weekly?: { days: number[]; until: string | null } | null;
   reminders: number[];
   notifyAt: string;
 }
@@ -51,7 +52,7 @@ export function agendaRows(items: Occurrence[]): string {
   if (!items.length) return '<div class="empty-state"><p>Sin eventos para este día</p></div>';
   return items.map(({ event }) => `<button class="event-row" data-event-id="${escapeHtml(event.id)}" aria-label="Editar ${escapeHtml(event.title)}">
     <span class="event-time">${event.time ?? "Todo el día"}</span>
-    <span class="event-info"><strong>${escapeHtml(event.title)}</strong><small>${kindLabels[event.kind]}${event.annual ? " · Anual" : ""}</small></span>
+    <span class="event-info"><strong>${escapeHtml(event.title)}</strong><small>${kindLabels[event.kind]}${event.weekly ? " · Semanal" : event.annual ? " · Anual" : ""}</small></span>
     <span class="event-marker ${event.kind}" aria-hidden="true"></span></button>`).join("");
 }
 

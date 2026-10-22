@@ -1,6 +1,6 @@
 [package]
 name = "calendar-app"
-version = "0.1.0"
+version = "0.2.0"
 description = "Calendario local para Windows"
 authors = ["Ian Battistoni"]
 edition = "2024"
@@ -37,5 +37,6 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
 
 

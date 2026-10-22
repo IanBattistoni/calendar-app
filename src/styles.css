@@ -158,6 +158,14 @@ select { width: 146px; max-width: 45%; flex-shrink: 0; color: var(--text); backg
 .event-dialog footer button { padding: 8px 10px; font-size: 12px; }
 .event-dialog .primary { background: var(--accent); color: var(--on-accent); }
 .event-dialog .delete-event { color: #d4655a; }
+.event-additional { margin: 12px 0; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.event-additional summary { cursor: pointer; font-size: 12px; }
+.event-dialog select { display: block; width: 100%; max-width: 100%; margin-top: 5px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--field); }
+.weekly-days { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; border: 0; padding: 0; }
+.weekly-days legend { font-size: 12px; margin-top: 10px; }
+.weekly-days .inline-check { margin: 6px 0; }
+.repeat-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.repeat-presets button { padding: 6px 8px; font-size: 11px; border: 1px solid var(--line); }
 .agenda-heading { display: flex; align-items: center; justify-content: space-between; padding-right: 8px; min-height: 36px; }
 .agenda-heading h2 { padding-top: 0; }
 .event-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 16px; text-align: left; }

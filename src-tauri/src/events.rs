@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use chrono::{Datelike, NaiveDate};
 use std::{
     fs,
     path::PathBuf,
@@ -8,6 +9,13 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct EventStore(pub Mutex<PathBuf>);
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WeeklyRepeat {
+    // ISO weekdays: Monday = 1, Sunday = 7. End date is inclusive.
+    pub days: Vec<u8>,
+    pub until: Option<String>,
+}
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Kind {
@@ -25,6 +33,8 @@ pub struct CalendarEvent {
     pub description: String,
     pub kind: Kind,
     pub annual: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weekly: Option<WeeklyRepeat>,
     #[serde(default)]
     pub reminders: Vec<i64>,
     #[serde(default = "default_notify_at")]
@@ -95,6 +105,20 @@ fn validate(event: &mut CalendarEvent) -> Result<(), String> {
         return Err("La descripción admite hasta 4000 caracteres".into());
     }
     date_parts(&event.date)?;
+    if let Some(rule) = &mut event.weekly {
+        if event.annual || event.kind == Kind::Birthday {
+            return Err("Elige una sola repetición: semanal o anual".into());
+        }
+        if rule.days.is_empty() || rule.days.len() > 7 || rule.days.iter().any(|d| !(1..=7).contains(d)) {
+            return Err("Selecciona al menos un día de la semana válido".into());
+        }
+        rule.days.sort_unstable();
+        rule.days.dedup();
+        if let Some(until) = &rule.until {
+            date_parts(until)?;
+            if until < &event.date { return Err("El fin no puede ser anterior al inicio de la serie".into()); }
+        }
+    }
     if let Some(time) = &event.time {
         let b = time.as_bytes();
         if b.len() != 5
@@ -158,7 +182,22 @@ pub(crate) fn occurrences(
     let mut result = Vec::new();
     for event in events {
         let (origin_year, m, d) = date_parts(&event.date)?;
-        if event.annual {
+        if let Some(rule) = &event.weekly {
+            let first = start.max(event.date.as_str());
+            let last = rule.until.as_deref().map_or(end, |until| end.min(until));
+            if first <= last {
+                let mut day = NaiveDate::parse_from_str(first, "%Y-%m-%d").map_err(|e| e.to_string())?;
+                let last = NaiveDate::parse_from_str(last, "%Y-%m-%d").map_err(|e| e.to_string())?;
+                // Only expand the requested range, never materialize an infinite series.
+                loop {
+                    if rule.days.contains(&(day.weekday().number_from_monday() as u8)) {
+                        result.push(Occurrence { event: event.clone(), date: day.to_string() });
+                    }
+                    if day == last { break; }
+                    day = day.succ_opt().ok_or("Fecha fuera de rango")?;
+                }
+            }
+        } else if event.annual {
             for year in first_year.max(origin_year)..=last_year {
                 let day = if m == 2 && d == 29 && !leap(year) {
                     28
@@ -259,6 +298,7 @@ mod tests {
     fn legacy_events_keep_data_and_do_not_enable_unsolicited_alerts() {
         let event: CalendarEvent=serde_json::from_str(r#"{"id":"old","title":"Existente","date":"2026-10-21","time":null,"description":"Datos originales","kind":"event","annual":false}"#).unwrap();
         assert!(event.reminders.is_empty());
+        assert!(event.weekly.is_none());
         assert_eq!(event.notify_at, "09:00");
         assert_eq!(event.description, "Datos originales");
     }
@@ -271,6 +311,7 @@ mod tests {
             description: "".into(),
             kind: Kind::Birthday,
             annual: true,
+            weekly: None,
             reminders: vec![],
             notify_at: default_notify_at(),
         }
@@ -301,6 +342,63 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+    fn weekly(days: Vec<u8>, until: Option<&str>) -> CalendarEvent {
+        let mut e = event("2026-10-22"); // Thursday, not necessarily a selected weekday.
+        e.kind = Kind::Event;
+        e.annual = false;
+        e.time = Some("09:30".into());
+        e.weekly = Some(WeeklyRepeat { days, until: until.map(String::from) });
+        e
+    }
+    #[test]
+    fn daily_weekdays_skip_weekends_and_respect_series_start() {
+        let e = weekly(vec![1, 2, 3, 4, 5], None);
+        let list = occurrences(vec![e], "2026-10-19", "2026-10-28").unwrap();
+        assert_eq!(list.iter().map(|o| o.date.as_str()).collect::<Vec<_>>(),
+            vec!["2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28"]);
+        assert!(list.iter().all(|o| o.event.time.as_deref() == Some("09:30") && o.event.id == "test"));
+    }
+    #[test]
+    fn weekly_monday_has_inclusive_end_and_no_extra_first_day() {
+        let e = weekly(vec![1], Some("2026-11-02"));
+        let list = occurrences(vec![e], "2026-10-22", "2026-11-30").unwrap();
+        assert_eq!(list.iter().map(|o| o.date.as_str()).collect::<Vec<_>>(), vec!["2026-10-26", "2026-11-02"]);
+    }
+    #[test]
+    fn unbounded_series_only_expands_requested_year_and_handles_leap_days() {
+        let e = weekly(vec![1, 2, 3, 4, 5, 6, 7], None);
+        let list = occurrences(vec![e], "2032-02-28", "2032-03-01").unwrap();
+        assert_eq!(list.iter().map(|o| o.date.as_str()).collect::<Vec<_>>(), vec!["2032-02-28", "2032-02-29", "2032-03-01"]);
+    }
+    #[test]
+    fn validates_weekly_rules_and_preserves_other_series_when_removed() {
+        for (days, until) in [(vec![], None), (vec![0], None), (vec![8], None), (vec![1], Some("2026-10-21")), (vec![1], Some("2026-02-30"))] {
+            assert!(validate(&mut weekly(days, until)).is_err());
+        }
+        let mut e = weekly(vec![5, 1, 1], None);
+        validate(&mut e).unwrap();
+        assert_eq!(e.weekly.as_ref().unwrap().days, vec![1, 5]);
+        e.annual = true;
+        assert!(validate(&mut e).is_err());
+        e.annual = false;
+        e.kind = Kind::Birthday;
+        assert!(validate(&mut e).is_err());
+        let mut events = vec![weekly(vec![1, 2, 3, 4, 5], None), event("2026-10-26")];
+        events[1].id = "keep".into();
+        events.retain(|e| e.id != "test");
+        let list = occurrences(events, "2026-10-22", "2026-11-01").unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].event.id, "keep");
+    }
+    #[test]
+    fn weekly_rule_roundtrips_without_expanding_storage() {
+        let original = weekly(vec![1, 2, 3, 4, 5], None);
+        let bytes = serde_json::to_vec(&vec![original]).unwrap();
+        let restored: Vec<CalendarEvent> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].weekly.as_ref().unwrap().days, vec![1, 2, 3, 4, 5]);
+        assert!(occurrences(restored, "2027-01-01", "2027-01-31").unwrap().len() > 10);
     }
     #[test]
     fn writes_reopens_updates_and_removes_without_losing_other_events() {

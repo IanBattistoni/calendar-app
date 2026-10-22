@@ -5,6 +5,7 @@ Aplicación local ligera con Tauri 2, Rust, TypeScript y Vite. El diseño de Cla
 ## Funciones
 
 - Calendario mensual, navegación por teclado, creación, edición y eliminación de eventos, cumpleaños anuales y recordatorios.
+- Configuraciones adicionales: repetición semanal con días elegidos, accesos lunes a viernes o todos los días y fin opcional inclusivo. Se guarda una sola regla; las fechas se calculan dentro del intervalo consultado. Editar o eliminar afecta a toda la serie; para detener las futuras reuniones conservando el historial, fijar su último día. No se excluyen feriados automáticamente.
 - Tema claro, oscuro o automático; color, tamaño, densidad y primer día configurables.
 - Icono permanente en la bandeja mientras el proceso está activo. Cerrar el calendario oculta la ventana. Una segunda instancia abre la existente.
 - El calendario abre en la esquina inferior derecha del área útil del monitor, incluso desde los iconos ocultos de Windows.

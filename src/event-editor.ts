@@ -26,15 +26,26 @@ export function installEventEditor(context: EditorContext) {
       <header><h2>${existing ? "Editar" : "Agregar"} ${kindLabels[kind].toLowerCase()}</h2><button type="button" data-editor-close aria-label="Cerrar formulario">×</button></header>
       <label>${kind === "birthday" ? "Nombre" : "Título"}<input name="title" required maxlength="160" value="${escapeHtml(event.title)}" autocomplete="off" autofocus placeholder="${kind === "birthday" ? "Nombre de la persona" : "¿Qué tienes planeado?"}"></label>
       <div class="form-columns"><label>Fecha<input name="date" type="date" required min="1900-01-01" max="9999-12-31" value="${event.date}"></label>${kind === "birthday" ? "" : `<label>Hora<input name="time" type="time" value="${event.time ?? ""}" ${event.time ? "" : "disabled"}></label>`}</div>
-      ${kind === "birthday" ? '<p class="form-note">Se repite cada año. Los cumpleaños del 29 de febrero se muestran el 28 en años no bisiestos.</p>' : `<label class="inline-check"><input type="checkbox" name="allDay" ${event.time ? "" : "checked"}> Todo el día</label><label class="inline-check"><input type="checkbox" name="annual" ${event.annual ? "checked" : ""}> Repetir cada año</label>`}
+      ${kind === "birthday" ? '<p class="form-note">Se repite cada año. Los cumpleaños del 29 de febrero se muestran el 28 en años no bisiestos.</p>' : `<label class="inline-check"><input type="checkbox" name="allDay" ${event.time ? "" : "checked"}> Todo el día</label>
+      <details class="event-additional" ${event.weekly || event.annual ? "open" : ""}><summary>Configuraciones adicionales</summary>
+        <label>Repetición<select name="repeat"><option value="none" ${!event.weekly && !event.annual ? "selected" : ""}>No repetir</option><option value="weekly" ${event.weekly ? "selected" : ""}>Cada semana, los días elegidos</option><option value="annual" ${event.annual ? "selected" : ""}>Cada año</option></select></label>
+        <div data-weekly ${event.weekly ? "" : "hidden"}>
+          <fieldset class="weekly-days"><legend>Días de la semana</legend>${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day, index) => `<label class="inline-check"><input type="checkbox" name="weekdays" value="${index + 1}" ${(event.weekly?.days ?? [((fromKey(event.date).getDay() + 6) % 7) + 1]).includes(index + 1) ? "checked" : ""}>${day}</label>`).join("")}</fieldset>
+          <div class="repeat-presets"><button type="button" data-repeat-days="1,2,3,4,5">Lunes a viernes</button><button type="button" data-repeat-days="1,2,3,4,5,6,7">Todos los días</button></div>
+          <label>Finaliza<select name="repeatEnd"><option value="never" ${!event.weekly?.until ? "selected" : ""}>Sin fecha de fin</option><option value="date" ${event.weekly?.until ? "selected" : ""}>En una fecha</option></select></label>
+          <label data-repeat-until ${event.weekly?.until ? "" : "hidden"}>Último día de la serie<input type="date" name="repeatUntil" min="${event.date}" max="9999-12-31" value="${event.weekly?.until ?? ""}"></label>
+          <p class="form-note">La fecha de arriba es el inicio de la serie. Sin fecha de fin, continúa hasta que la cambies o elimines. Para detener futuras reuniones conservando las anteriores, elige un último día.</p>
+        </div>
+        ${existing && (event.weekly || event.annual) ? '<p class="form-note">Estás editando toda la serie. Los cambios se aplican a todas sus fechas.</p>' : ""}
+      </details>`}
       <label>Descripción <span class="optional">(opcional)</span><textarea name="description" maxlength="4000" rows="2">${escapeHtml(event.description)}</textarea></label>
       <fieldset class="reminder-options"><legend>Avisos de Windows</legend>
       ${((kind === "birthday" ? [[4320,"3 días antes"],[2880,"2 días antes"],[1440,"1 día antes"],[0,"El mismo día"]] : [[0,"A la hora"],[5,"5 min antes"],[15,"15 min antes"],[30,"30 min antes"],[60,"1 h antes"],[120,"2 h antes"],[1440,"1 día antes"]]) as [number,string][]).map(([minutes,label]) => `<label class="inline-check"><input name="reminders" type="checkbox" value="${minutes}" ${event.reminders.includes(minutes) ? "checked" : ""}> ${label}</label>`).join("")}
       </fieldset>
-      <label class="day-notify-time" ${event.time ? "hidden" : ""}>Hora del aviso para días completos<input name="notifyAt" type="time" required value="${event.notifyAt}"></label>
+      <label class="day-notify-time" ${event.time ? "hidden" : ""}>Hora de las notificaciones para eventos de todo el día<input name="notifyAt" type="time" required value="${event.notifyAt}"></label>
       <p class="form-note">Los avisos funcionan mientras Calendario siga en la bandeja. Sin opciones marcadas, no se enviarán avisos.</p>
       <p class="form-error" role="alert" hidden></p>
-      <footer>${existing ? '<button type="button" class="delete-event" data-delete>Eliminar</button>' : ""}<span></span><button type="button" data-editor-close>Cancelar</button><button type="submit" class="primary">Guardar</button></footer>
+      <footer>${existing ? `<button type="button" class="delete-event" data-delete>${event.weekly || event.annual ? "Eliminar serie" : "Eliminar"}</button>` : ""}<span></span><button type="button" data-editor-close>Cancelar</button><button type="submit" class="primary">Guardar</button></footer>
     </form>`;
     document.body.append(dialog);
     const current = dialog;
@@ -60,6 +71,22 @@ export function installEventEditor(context: EditorContext) {
       current.querySelector<HTMLElement>(".day-notify-time")!.hidden = !allDay.checked;
     });
     const report = (cause: unknown): void => { error.hidden = false; error.textContent = String(cause); };
+    function updateRepeatControls(): void {
+      const weekly = (form.elements.namedItem("repeat") as HTMLSelectElement | null)?.value === "weekly";
+      const ends = (form.elements.namedItem("repeatEnd") as HTMLSelectElement | null)?.value === "date";
+      const section = form.querySelector<HTMLElement>("[data-weekly]");
+      if (section) section.hidden = !weekly;
+      const untilLabel = form.querySelector<HTMLElement>("[data-repeat-until]");
+      if (untilLabel) untilLabel.hidden = !ends;
+      const until = form.elements.namedItem("repeatUntil") as HTMLInputElement | null;
+      if (until) { until.disabled = !weekly || !ends; until.required = weekly && ends; until.min = (form.elements.namedItem("date") as HTMLInputElement).value; }
+    }
+    form.addEventListener("change", updateRepeatControls);
+    form.querySelectorAll<HTMLButtonElement>("[data-repeat-days]").forEach(button => button.addEventListener("click", () => {
+      const days = button.dataset.repeatDays!.split(",");
+      form.querySelectorAll<HTMLInputElement>('[name="weekdays"]').forEach(input => { input.checked = days.includes(input.value); });
+    }));
+    updateRepeatControls();
     form.addEventListener("submit", e => {
       e.preventDefault();
       if (busy || !form.reportValidity()) return;
@@ -67,10 +94,16 @@ export function installEventEditor(context: EditorContext) {
       const allDay = kind === "birthday" || values.get("allDay") === "on";
       const time = String(values.get("time") ?? "");
       if (!allDay && !time) { report("Indica una hora o marca «Todo el día»."); return; }
+      const weekly = values.get("repeat") === "weekly";
+      const days = values.getAll("weekdays").map(Number);
+      const until = weekly && values.get("repeatEnd") === "date" ? String(values.get("repeatUntil") ?? "") : null;
+      if (weekly && !days.length) { report("Selecciona al menos un día de la semana."); return; }
+      if (until !== null && (!until || until < String(values.get("date")))) { report("El último día no puede ser anterior al inicio de la serie."); return; }
       setBusy(true); error.hidden = true;
       void saveEvent({ ...event, title: String(values.get("title") ?? ""), date: String(values.get("date") ?? ""),
         time: allDay ? null : time, description: String(values.get("description") ?? ""),
-        annual: kind === "birthday" || values.get("annual") === "on",
+        annual: kind === "birthday" || values.get("repeat") === "annual",
+        weekly: weekly ? { days, until } : null,
         reminders: values.getAll("reminders").map(Number), notifyAt: String(values.get("notifyAt") ?? "09:00") })
         .then(saved => { setBusy(false); current.close(); context.select(saved.date); context.changed(); })
         .catch(cause => { setBusy(false); report(cause); });
@@ -78,7 +111,7 @@ export function installEventEditor(context: EditorContext) {
     current.querySelector<HTMLButtonElement>("[data-delete]")?.addEventListener("click", e => {
       if (busy) return;
       const button = e.currentTarget as HTMLButtonElement;
-      if (!confirmDelete) { confirmDelete = true; button.textContent = event.annual ? "¿Eliminar toda la serie?" : "¿Eliminar evento?"; return; }
+      if (!confirmDelete) { confirmDelete = true; button.textContent = event.weekly || event.annual ? "¿Eliminar toda la serie?" : "¿Eliminar evento?"; report(event.weekly || event.annual ? "Se eliminarán todas las fechas de esta serie y sus avisos. Pulsa de nuevo para confirmar." : "Pulsa de nuevo para confirmar la eliminación."); return; }
       setBusy(true);
       void deleteEvent(event.id).then(() => { setBusy(false); current.close(); context.changed(); })
         .catch(cause => { setBusy(false); report(cause); });
