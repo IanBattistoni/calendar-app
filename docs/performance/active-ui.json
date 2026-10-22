@@ -1,0 +1,25 @@
+{
+  "Scenario": "active-ui",
+  "StartedUtc": "2026-10-21T05:59:27.1408181Z",
+  "RootId": 70324,
+  "RootStartUtc": "2026-10-21T05:42:00.5582803Z",
+  "DurationSeconds": 30.334,
+  "LogicalProcessors": 12,
+  "SampleCount": 12,
+  "CpuSeconds": 1.265625,
+  "AverageCpuPercent": 0.34768889111036166,
+  "MaximumSampleCpuPercent": 1.2202734332839558,
+  "AverageWorkingSetSumMiB": 153.86946614583334,
+  "AveragePrivateCommitMiB": 216.18684895833334,
+  "ProcessNames": {
+    "8172:639281581208744828": "msedgewebview2",
+    "10528:639281581206387715": "msedgewebview2",
+    "70324:639281581205582803": "calendar-app",
+    "9956:639281581209239969": "msedgewebview2",
+    "28848:639281581208508775": "msedgewebview2",
+    "68664:639281581210859604": "msedgewebview2",
+    "65840:639281581206766717": "msedgewebview2",
+    "43160:639281581208455023": "msedgewebview2"
+  },
+  "Notes": "CPU normalizada sobre toda la capacidad del equipo, incluyendo WebView2. Los picos son promedios por intervalo (~2 s), no instantáneos. WorkingSetSum puede contar páginas compartidas más de una vez. No mide GPU ni consumo eléctrico. Procesos que terminan entre muestras pueden dejar CPU sin contabilizar."
+}
