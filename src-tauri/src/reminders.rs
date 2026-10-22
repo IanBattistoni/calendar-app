@@ -206,6 +206,11 @@ pub async fn get_upcoming(app: AppHandle) -> Result<Vec<Upcoming>, String> {
             expires_at,
         });
     }
+    Ok(upcoming_preview(result))
+}
+// Limit only the preview, before its global cap. Calendar occurrences and
+// notification scheduling continue to use the complete series.
+fn upcoming_preview(mut result: Vec<Upcoming>) -> Vec<Upcoming> {
     result.sort_by_key(|a| {
         (
             a.remind_at.unwrap_or(a.event_at),
@@ -213,8 +218,15 @@ pub async fn get_upcoming(app: AppHandle) -> Result<Vec<Upcoming>, String> {
             a.event.id.clone(),
         )
     });
+    let mut weekly_counts: HashMap<String, usize> = HashMap::new();
+    result.retain(|item| {
+        if item.event.weekly.is_none() { return true; }
+        let count = weekly_counts.entry(item.event.id.clone()).or_default();
+        *count += 1;
+        *count <= 2
+    });
     result.truncate(50);
-    Ok(result)
+    result
 }
 #[tauri::command]
 pub async fn notification_status(app: AppHandle) -> Result<Option<String>, String> {
@@ -441,5 +453,39 @@ mod tests {
             "claimed"
         );
         fs::remove_file(path).unwrap();
+    }
+    fn preview_item(id: &str, at: i64, weekly: bool) -> Upcoming {
+        let mut event = item().event;
+        event.id = id.into();
+        // Two unrelated series may have the same title.
+        event.title = "Reunión".into();
+        if weekly {
+            event.kind = Kind::Event;
+            event.annual = false;
+            event.weekly = Some(crate::events::WeeklyRepeat { days: vec![1, 2, 3, 4, 5], until: None });
+        }
+        Upcoming { event, date: at.to_string(), event_at: at, remind_at: None, expires_at: at + 1 }
+    }
+    #[test]
+    fn preview_keeps_only_next_two_weekly_occurrences_before_global_limit() {
+        let mut items: Vec<_> = (1..=60).map(|n| preview_item("daily", n, true)).collect();
+        items.push(preview_item("birthday", 70, false));
+        items.reverse();
+        let preview = upcoming_preview(items.clone());
+        assert_eq!(preview.iter().map(|o| (o.event.id.as_str(), o.event_at)).collect::<Vec<_>>(),
+            vec![("daily", 1), ("daily", 2), ("birthday", 70)]);
+        assert_eq!(items.len(), 61); // Does not change source occurrences.
+    }
+    #[test]
+    fn preview_limits_each_series_by_id_without_hiding_single_events_or_birthdays() {
+        let preview = upcoming_preview(vec![
+            preview_item("daily", 1, true), preview_item("other", 2, true),
+            preview_item("daily", 3, true), preview_item("other", 4, true),
+            preview_item("daily", 5, true), preview_item("other", 6, true),
+            preview_item("single", 7, false), preview_item("birthday", 8, false),
+        ]);
+        assert_eq!(preview.iter().map(|o| o.event_at).collect::<Vec<_>>(), vec![1, 2, 3, 4, 7, 8]);
+        assert_eq!(upcoming_preview(vec![preview_item("daily", 9, true)]).len(), 1);
+        assert!(upcoming_preview(vec![]).is_empty());
     }
 }
